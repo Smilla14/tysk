@@ -593,26 +593,116 @@
                 
                 const example = examples[currentExampleIndex];
                 const utterance = new SpeechSynthesisUtterance(example.german);
+                
+                // Find the best German voice
+                const voices = window.speechSynthesis.getVoices();
+                const germanVoices = voices.filter(voice => 
+                    voice.lang.startsWith('de') || 
+                    voice.name.toLowerCase().includes('german') ||
+                    voice.name.toLowerCase().includes('deutsch')
+                );
+                
+                if (germanVoices.length > 0) {
+                    // Prefer female German voices as they're often clearer for learning
+                    const femaleGermanVoice = germanVoices.find(voice => 
+                        voice.name.toLowerCase().includes('female') ||
+                        voice.name.toLowerCase().includes('petra') ||
+                        voice.name.toLowerCase().includes('marlene') ||
+                        voice.name.toLowerCase().includes('vicki')
+                    );
+                    
+                    utterance.voice = femaleGermanVoice || germanVoices[0];
+                }
+                
+                // Optimize settings for German pronunciation
                 utterance.lang = 'de-DE';
-                utterance.rate = 0.7;
+                utterance.rate = 0.6;  // Slower for better learning
                 utterance.pitch = 1.0;
+                utterance.volume = 0.9;
+                
+                // Add pauses between words for clarity
+                const wordsWithPauses = example.german.replace(/\s+/g, ' ... ');
+                utterance.text = wordsWithPauses;
                 
                 window.speechSynthesis.speak(utterance);
                 
                 // Visual feedback
-                const btn = event.target;
+                const btn = event.target.closest('button');
                 const originalText = btn.innerHTML;
                 btn.innerHTML = '🔊 Afspiller...';
                 btn.disabled = true;
+                btn.style.opacity = '0.7';
                 
                 utterance.onend = function() {
                     btn.innerHTML = originalText;
                     btn.disabled = false;
+                    btn.style.opacity = '1';
+                };
+                
+                utterance.onerror = function() {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    alert('Kunne ikke afspille tysk udtale. Prøv igen.');
                 };
             } else {
-                alert('Din browser understøtter ikke talesyntese');
+                // Fallback: Show phonetic pronunciation
+                const example = examples[currentExampleIndex];
+                const phoneticGuide = getPhoneticGuide(example.german);
+                alert(`Udtale hjælp:\n${example.german}\n\n${phoneticGuide}\n\nTip: Aktiver tysk stemme i din telefons indstillinger for bedre udtale.`);
             }
         }
+        
+        function getPhoneticGuide(germanText) {
+            const pronunciationMap = {
+                'Ich bin': 'Ikh bin',
+                'Du bist': 'Du bist',
+                'Er ist': 'Ær ist',
+                'Sie ist': 'Zi ist',
+                'Es ist': 'Es ist',
+                'Wir sind': 'Vir zind',
+                'Ihr seid': 'Ær zaid',
+                'Sie sind': 'Zi zind',
+                'Jahre': 'YA-re',
+                'alt': 'alt',
+                'sehr': 'zær',
+                'klug': 'klug',
+                'mein': 'main',
+                'Freund': 'froind',
+                'meine': 'mai-ne',
+                'Schwester': 'SHVES-ter',
+                'ein': 'ain',
+                'Buch': 'bukh',
+                'in': 'in',
+                'der': 'dær',
+                'Schule': 'SHU-le',
+                'gute': 'GU-te',
+                'Schüler': 'SHOY-ler',
+                'aus': 'ous',
+                'Deutschland': 'DOITSH-land',
+                'herzlich': 'HÆRTS-likh',
+                'willkommen': 'vil-KOM-men'
+            };
+            
+            let phonetic = germanText;
+            for (let [german, pronunciation] of Object.entries(pronunciationMap)) {
+                phonetic = phonetic.replace(new RegExp(german, 'gi'), pronunciation);
+            }
+            
+            return `Udtale: ${phonetic}`;
+        }
+        
+        // Initialize voices when they're loaded
+        function initializeVoices() {
+            if (window.speechSynthesis.getVoices().length === 0) {
+                window.speechSynthesis.addEventListener('voiceschanged', function() {
+                    console.log('Stemmer indlæst:', window.speechSynthesis.getVoices().length);
+                });
+            }
+        }
+        
+        // Call voice initialization
+        setTimeout(initializeVoices, 100);
 
         function previousExample() {
             if (currentExampleIndex > 0) {
@@ -900,5 +990,7 @@
             }
         }, 100);
     </script>
+</body>
+</html>
 </body>
 </html>
