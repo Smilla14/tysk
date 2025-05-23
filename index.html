@@ -1,435 +1,904 @@
-import React, { useState, useEffect } from 'react';
-
-const TyskLaering = () => {
-  const [currentExercise, setCurrentExercise] = useState(0);
-  const [userAnswer, setUserAnswer] = useState('');
-  const [feedback, setFeedback] = useState('');
-  const [score, setScore] = useState(0);
-  const [showConjugation, setShowConjugation] = useState(false);
-  const [showInstructions, setShowInstructions] = useState(false);
-  const [voices, setVoices] = useState([]);
-  const [germanVoices, setGermanVoices] = useState([]);
-  const [germanVoice, setGermanVoice] = useState(null);
-  const [speechRate, setSpeechRate] = useState(0.8); // Default speech rate (slightly faster than before)
-
-  // Sein conjugation data
-  const seinConjugation = [
-    { pronoun: 'ich', verb: 'bin', translation: 'jeg er' },
-    { pronoun: 'du', verb: 'bist', translation: 'du er' },
-    { pronoun: 'er/sie/es', verb: 'ist', translation: 'han/hun/det er' },
-    { pronoun: 'wir', verb: 'sind', translation: 'vi er' },
-    { pronoun: 'ihr', verb: 'seid', translation: 'I er' },
-    { pronoun: 'sie/Sie', verb: 'sind', translation: 'de/De er' }
-  ];
-
-  // Exercise data
-  const exercises = [
-    {
-      question: 'Hvilket ord mangler? Ich ___ ein Schüler.',
-      correctAnswer: 'bin',
-      hint: 'Første person ental',
-      translation: 'Jeg er en elev.'
-    },
-    {
-      question: 'Hvilket ord mangler? Du ___ meine Freundin.',
-      correctAnswer: 'bist',
-      hint: 'Anden person ental',
-      translation: 'Du er min veninde.'
-    },
-    {
-      question: 'Hvilket ord mangler? Er ___ aus Deutschland.',
-      correctAnswer: 'ist',
-      hint: 'Tredje person ental (han)',
-      translation: 'Han er fra Tyskland.'
-    },
-    {
-      question: 'Hvilket ord mangler? Sie ___ aus der Schweiz.',
-      correctAnswer: 'ist',
-      hint: 'Tredje person ental (hun)',
-      translation: 'Hun er fra Schweiz.'
-    },
-    {
-      question: 'Hvilket ord mangler? Es ___ ein Buch.',
-      correctAnswer: 'ist',
-      hint: 'Tredje person ental (intetkøn)',
-      translation: 'Det er en bog.'
-    },
-    {
-      question: 'Hvilket ord mangler? Wir ___ in der Schule.',
-      correctAnswer: 'sind',
-      hint: 'Første person flertal',
-      translation: 'Vi er i skolen.'
-    },
-    {
-      question: 'Hvilket ord mangler? Ihr ___ sehr nett.',
-      correctAnswer: 'seid',
-      hint: 'Anden person flertal',
-      translation: 'I er meget søde.'
-    },
-    {
-      question: 'Hvilket ord mangler? Sie ___ meine Lehrer.',
-      correctAnswer: 'sind',
-      hint: 'Tredje person flertal',
-      translation: 'De er mine lærere.'
-    }
-  ];
-
-  // Load available voices and find German ones
-  useEffect(() => {
-    const loadVoices = () => {
-      const availableVoices = window.speechSynthesis.getVoices();
-      setVoices(availableVoices);
-      
-      // Try to find German voices
-      const germVoices = availableVoices.filter(voice => 
-        voice.lang.includes('de') || voice.name.includes('Deutsch') || voice.name.includes('German')
-      );
-      
-      setGermanVoices(germVoices);
-      
-      if (germVoices.length > 0) {
-        setGermanVoice(germVoices[0]); // Default to first German voice
-      } else if (availableVoices.length > 0) {
-        // Fallback to any available voice
-        setGermanVoice(availableVoices[0]);
-      }
-    };
-
-    // Safari sometimes requires a small delay
-    if (window.speechSynthesis) {
-      if (window.speechSynthesis.getVoices().length > 0) {
-        loadVoices();
-      } else {
-        window.speechSynthesis.onvoiceschanged = loadVoices;
-      }
-    }
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Tysk Sein Træner</title>
     
-    // Ensure speech cancellation when component unmounts
-    return () => {
-      if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, []);
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIlR5c2sgU2VpbiBUcsOmbmVyIiwKICAic2hvcnRfbmFtZSI6ICJTZWluIFRyw6ZuZXIiLAogICJkZXNjcmlwdGlvbiI6ICJMw6ZyIHZlcmJldCAnc2VpbicgcMOlIHR5c2siLAogICJzdGFydF91cmwiOiAiLiIsCiAgImRpc3BsYXkiOiAic3RhbmRhbG9uZSIsCiAgInRoZW1lX2NvbG9yIjogIiM2MzY2ZjEiLAogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiNmOWZhZmIiLAogICJpY29ucyI6IFsKICAgIHsKICAgICAgInNyYyI6ICJkYXRhOmltYWdlL3N2Zyt4bWw7YmFzZTY0LFBITjJaeUIzYVdSMGFEMGlNVEk0SWlCb1pXbG5hSFE5SWpFeU9DSWdkbWxsZDBKdmVEMGlNQ0F3SURFME5DQXhORFFpSUdobGJHNXpQU0pvZEhSd2N6b3ZMM2QzZHk1M015NXZjbWN2TWpBd01DOXpkbWNpUGdvOGNtVmpkQ0IzYVdSMGFEMGlNVEkwSWlCb1pXbG5hSFE5SWpFeU5DSWdabWxzYkQwaVl6WXpOalptTVNJZ2NuZzlJakVpTHo0S1BIUmxlSFFnZUQwaU5qUWlJSGs5SWpRMElpQm1iMjUwTFdaaGJXbHNlVDBpYzJGdWN5MXpaWEpwWmlJZ1ptOXVkQzF6YVhwbFBTSXpOaUlnWm1sc2JEMGlZV0Z5WVdGaklpQjBaWGgwTFdGdVkyaHZjajBpYldsa1pHeGxJajVUUEM5MFpYaDBQZ284TDNOMlp6NEsiLAogICAgICAic2l6ZXMiOiAiMTQ0eDEwNCIsCiAgICAgICJ0eXBlIjogImltYWdlL3N2Zyt4bWwiCiAgICB9CiAgXQp9">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Sein Træner">
+    <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTI4IiBoZWlnaHQ9IjEyOCIgdmlld0JveD0iMCAwIDE0NCAxNDQiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMjQiIGhlaWdodD0iMTI0IiBmaWxsPSJjNjM2NmYxIiByeD0iMSIvPgo8dGV4dCB4PSI2NCIgeT0iNDQiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjM2IiBmaWxsPSJhYXJhYWEiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlM8L3RleHQ+Cjwvc3ZnPgo=">
 
-  // Speak text function
-  const speakText = (text) => {
-    if (!window.speechSynthesis) {
-      alert('Din browser understøtter ikke oplæsning. Prøv venligst med Safari på iOS.');
-      return;
-    }
-
-    // Cancel any ongoing speech
-    window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    if (germanVoice) {
-      utterance.voice = germanVoice;
-      utterance.lang = 'de-DE';
-    }
-    utterance.rate = speechRate; // Use the selected speech rate
-    utterance.pitch = 1;
-    
-    // Add a slight pause between words for better clarity
-    const words = text.split(' ');
-    if (words.length > 1) {
-      text = words.join(' . ');
-    }
-    
-    utterance.text = text;
-    window.speechSynthesis.speak(utterance);
-  };
-
-  // Handle answer submission
-  const handleSubmit = () => {
-    const currentEx = exercises[currentExercise];
-    
-    if (userAnswer.trim().toLowerCase() === currentEx.correctAnswer.toLowerCase()) {
-      setFeedback('Korrekt! 🎉');
-      setScore(score + 1);
-      
-      // Move to next exercise or finish
-      setTimeout(() => {
-        if (currentExercise < exercises.length - 1) {
-          setCurrentExercise(currentExercise + 1);
-          setUserAnswer('');
-          setFeedback('');
-        } else {
-          setFeedback(`Godt klaret! Du fik ${score + 1} ud af ${exercises.length} rigtige!`);
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-      }, 1500);
-    } else {
-      setFeedback(`Forkert. Prøv igen eller brug et hint.`);
-    }
-  };
 
-  // Get hint
-  const getHint = () => {
-    setFeedback(`Hint: ${exercises[currentExercise].hint}`);
-  };
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            overflow-x: hidden;
+            -webkit-user-select: none;
+            user-select: none;
+        }
 
-  // Speak full sentence
-  const speakFullSentence = () => {
-    const ex = exercises[currentExercise];
-    const fullSentence = ex.question.replace('___', ex.correctAnswer);
-    // Remove the question part "Hvilket ord mangler? "
-    const cleanSentence = fullSentence.replace('Hvilket ord mangler? ', '');
-    speakText(cleanSentence);
-  };
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            padding: 20px;
+            min-height: 100vh;
+        }
 
-  // Speak translation in Danish
-  const speakTranslation = () => {
-    if (!window.speechSynthesis) {
-      alert('Din browser understøtter ikke oplæsning. Prøv venligst med Safari på iOS.');
-      return;
-    }
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            padding-top: 20px;
+        }
 
-    // Cancel any ongoing speech
-    window.speechSynthesis.cancel();
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
 
-    const translation = exercises[currentExercise].translation;
-    const utterance = new SpeechSynthesisUtterance(translation);
-    
-    // Find a Danish voice if available
-    const danishVoice = voices.find(voice => 
-      voice.lang.includes('da-') || voice.name.includes('Danish') || voice.name.includes('Dansk')
-    );
-    
-    if (danishVoice) {
-      utterance.voice = danishVoice;
-    }
-    
-    utterance.lang = 'da-DK';
-    utterance.rate = speechRate;
-    utterance.pitch = 1;
-    
-    window.speechSynthesis.speak(utterance);
-  };
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
 
-  // Reset the exercise
-  const resetExercise = () => {
-    setCurrentExercise(0);
-    setUserAnswer('');
-    setFeedback('');
-    setScore(0);
-  };
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
 
-  return (
-    <div className="p-2 max-w-md mx-auto bg-blue-50 rounded-lg shadow-md" style={{minHeight: '100vh'}}>
-      <h1 className="text-xl font-bold text-center my-3 text-blue-800">Lær det tyske verbum "sein" (at være)</h1>
-      
-      {/* Conjugation Table - On iPhone, will be tappable to expand */}
-      <div className="mb-4">
-        <button 
-          onClick={() => setShowConjugation(!showConjugation)}
-          className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition text-sm font-medium"
-        >
-          {showConjugation ? 'Skjul bøjning' : 'Vis bøjning af "sein"'}
-        </button>
-        
-        {showConjugation && (
-          <div className="mt-2 bg-white p-2 rounded-md shadow-sm overflow-x-auto">
-            <h3 className="text-base font-semibold mb-2 text-center">Bøjning af "sein" (at være)</h3>
-            <div className="overflow-x-auto -mx-2 px-2">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="bg-blue-100">
-                    <th className="border border-blue-200 p-1">Pronomen</th>
-                    <th className="border border-blue-200 p-1">Sein</th>
-                    <th className="border border-blue-200 p-1">Dansk</th>
-                    <th className="border border-blue-200 p-1">Lyt</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {seinConjugation.map((item, index) => (
-                    <tr key={index} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
-                      <td className="border border-blue-200 p-1">{item.pronoun}</td>
-                      <td className="border border-blue-200 p-1 font-medium">{item.verb}</td>
-                      <td className="border border-blue-200 p-1">{item.translation}</td>
-                      <td className="border border-blue-200 p-1 text-center">
-                        <button
-                          onClick={() => speakText(`${item.pronoun} ${item.verb}`)}
-                          className="text-blue-600 hover:text-blue-800 text-lg px-2"
-                          aria-label="Lyt til udtale"
-                        >
-                          🔊
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .card-header .icon {
+            font-size: 24px;
+            margin-right: 12px;
+        }
+
+        .card-header h2 {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1a202c;
+        }
+
+        .conjugation-table {
+            display: grid;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .conjugation-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            padding: 12px;
+            background: #f7fafc;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+        }
+
+        .pronoun {
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .verb {
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .example-sentence {
+            font-size: 22px;
+            font-weight: 700;
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+            border-radius: 15px;
+            margin-bottom: 15px;
+            line-height: 1.4;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+
+        .translation {
+            font-size: 16px;
+            color: #718096;
+            text-align: center;
+            padding: 15px;
+            background: #f7fafc;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            border: 2px dashed #e2e8f0;
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 15px 20px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            text-decoration: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f7fafc;
+            color: #4a5568;
+            border: 2px solid #e2e8f0;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+            box-shadow: 0 4px 15px rgba(72, 187, 120, 0.4);
+        }
+
+        .btn-full {
+            grid-column: 1 / -1;
+        }
+
+        .navigation {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        .nav-btn {
+            padding: 12px 20px;
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-weight: 600;
+            color: #4a5568;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .nav-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .nav-btn:not(:disabled):active {
+            transform: scale(0.95);
+        }
+
+        .progress-indicator {
+            text-align: center;
+            font-size: 14px;
+            color: #718096;
+            font-weight: 500;
+        }
+
+        .quiz-question {
+            font-size: 20px;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 25px;
+            line-height: 1.5;
+            color: #2d3748;
+        }
+
+        .quiz-options {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .quiz-option {
+            padding: 18px;
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .quiz-option:active {
+            transform: scale(0.98);
+        }
+
+        .quiz-option.correct {
+            background: #c6f6d5;
+            border-color: #48bb78;
+            color: #22543d;
+        }
+
+        .quiz-option.incorrect {
+            background: #fed7d7;
+            border-color: #e53e3e;
+            color: #742a2a;
+        }
+
+        .quiz-option.disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .feedback {
+            padding: 15px;
+            border-radius: 12px;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .feedback.correct {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 2px solid #48bb78;
+        }
+
+        .feedback.incorrect {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 2px solid #e53e3e;
+        }
+
+        .score-display {
+            text-align: center;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 20px;
+            margin-bottom: 25px;
+        }
+
+        .score-number {
+            font-size: 48px;
+            font-weight: 700;
+            margin: 10px 0;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .slide-in {
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* Install prompt */
+        .install-prompt {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: #1a202c;
+            color: white;
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+            z-index: 1000;
+            transform: translateY(100px);
+            transition: transform 0.3s ease;
+        }
+
+        .install-prompt.show {
+            transform: translateY(0);
+        }
+
+        .install-prompt button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            margin: 5px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .card {
+                padding: 20px;
+            }
+            
+            .example-sentence {
+                font-size: 20px;
+                padding: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🇩🇪 Tysk Sein Træner</h1>
+            <p>Lær verbet "sein" på tysk</p>
+        </div>
+
+        <!-- Learning Mode -->
+        <div id="learningMode">
+            <!-- Conjugation Table -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="icon">📋</span>
+                    <h2>Bøjning af verbet 'sein'</h2>
+                </div>
+                
+                <div id="conjugationTable" class="conjugation-table hidden"></div>
+                
+                <button class="btn btn-secondary btn-full" onclick="toggleConjugation()">
+                    <span id="conjugationToggleText">👁️ Vis bøjning</span>
+                </button>
             </div>
-          </div>
-        )}
-      </div>
 
-      {/* Exercise Section */}
-      {currentExercise < exercises.length && (
-        <div className="bg-white p-3 rounded-lg shadow-sm">
-          <h2 className="text-lg font-semibold mb-3">Øvelse {currentExercise + 1} af {exercises.length}</h2>
-          
-          <p className="mb-3 text-base">{exercises[currentExercise].question}</p>
-          
-          <div className="flex gap-1 mb-3">
-            <button onClick={speakFullSentence} className="flex-1 bg-green-600 text-white px-2 py-2 rounded text-sm hover:bg-green-700">
-              🔊 Hør sætning
-            </button>
-            <button onClick={speakTranslation} className="flex-1 bg-purple-600 text-white px-2 py-2 rounded text-sm hover:bg-purple-700">
-              🔊 Hør oversættelse
-            </button>
-          </div>
-          
-          <div className="mb-3">
-            <input
-              type="text"
-              value={userAnswer}
-              onChange={(e) => setUserAnswer(e.target.value)}
-              placeholder="Skriv dit svar her..."
-              className="w-full p-3 border border-gray-300 rounded text-base"
-              onKeyPress={(e) => e.key === 'Enter' && handleSubmit()}
-              style={{fontSize: '16px'}} // Prevents iOS zoom on input focus
-            />
-          </div>
-          
-          <div className="flex gap-1">
-            <button
-              onClick={handleSubmit}
-              className="flex-1 bg-blue-600 text-white py-3 rounded hover:bg-blue-700 text-base"
-            >
-              Tjek svar
-            </button>
-            <button
-              onClick={getHint}
-              className="flex-1 bg-yellow-500 text-white py-3 rounded hover:bg-yellow-600 text-base"
-            >
-              Hint
-            </button>
-          </div>
-          
-          {feedback && (
-            <div className={`mt-3 p-3 rounded ${feedback.includes('Korrekt') || feedback.includes('Godt klaret') ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-              {feedback}
+            <!-- Examples -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="icon">💬</span>
+                    <h2>Eksempler</h2>
+                </div>
+                
+                <div id="exampleSentence" class="example-sentence"></div>
+                
+                <div id="translationDiv" class="translation hidden slide-in"></div>
+                
+                <div class="button-group">
+                    <button class="btn btn-success" onclick="speakSentence()">
+                        🔊 Lyt
+                    </button>
+                    <button class="btn btn-success" onclick="toggleTranslation()">
+                        <span id="translationToggleText">👁️ Oversæt</span>
+                    </button>
+                </div>
+                
+                <div class="navigation">
+                    <button class="nav-btn" id="prevBtn" onclick="previousExample()">
+                        ⬅️ Forrige
+                    </button>
+                    <div class="progress-indicator">
+                        <span id="currentIndex">1</span> af <span id="totalExamples">9</span>
+                    </div>
+                    <button class="nav-btn" id="nextBtn" onclick="nextExample()">
+                        Næste ➡️
+                    </button>
+                </div>
             </div>
-          )}
+
+            <!-- Start Quiz Button -->
+            <button class="btn btn-primary btn-full" onclick="startQuiz()">
+                🧠 Start øvelser
+            </button>
         </div>
-      )}
-      
-      {/* Score Display - Only show at the end */}
-      {currentExercise >= exercises.length && (
-        <div className="bg-white p-4 rounded-lg shadow-sm text-center">
-          <h2 className="text-xl font-bold mb-3">Øvelsen er færdig!</h2>
-          <p className="text-lg mb-3">Din score: {score} ud af {exercises.length}</p>
-          <button
-            onClick={resetExercise}
-            className="bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 text-base"
-          >
-            Start forfra
-          </button>
+
+        <!-- Quiz Mode -->
+        <div id="quizMode" class="hidden">
+            <div class="card">
+                <div class="card-header">
+                    <span class="icon">❓</span>
+                    <h2>Øvelse <span id="questionNumber">1</span> af 5</h2>
+                    <div style="margin-left: auto; font-weight: 700; color: #667eea;">
+                        Score: <span id="currentScore">0</span>
+                    </div>
+                </div>
+                
+                <div id="quizQuestion" class="quiz-question"></div>
+                
+                <div id="quizOptions" class="quiz-options"></div>
+                
+                <div id="quizFeedback" class="feedback hidden"></div>
+                
+                <button id="nextQuestionBtn" class="btn btn-primary btn-full hidden" onclick="nextQuestion()">
+                    Næste spørgsmål
+                </button>
+            </div>
         </div>
-      )}
-      
-      {/* Voice Controls - Simplified for iPhone */}
-      <div className="mt-4 bg-white p-3 rounded-lg shadow-sm">
-        <h3 className="font-bold mb-1 text-sm">Stemmeindstillinger:</h3>
-        
-        <div className="mb-3">
-          <label className="block text-xs font-medium mb-1">Vælg tysk stemme:</label>
-          <select 
-            className="w-full p-2 border border-gray-300 rounded text-sm"
-            style={{fontSize: '16px'}} // Prevents iOS zoom on select focus
-            value={germanVoice ? germanVoice.name : ''}
-            onChange={(e) => {
-              const selectedVoice = voices.find(v => v.name === e.target.value);
-              if (selectedVoice) {
-                setGermanVoice(selectedVoice);
-              }
-            }}
-          >
-            <option value="" disabled>Vælg en stemme</option>
-            {germanVoices.length > 0 ? (
-              germanVoices.map(voice => (
-                <option key={voice.name} value={voice.name}>
-                  {voice.name}
-                </option>
-              ))
-            ) : (
-              <option value="" disabled>Ingen tyske stemmer fundet</option>
-            )}
-            {voices.map(voice => (
-              !germanVoices.includes(voice) && (
-                <option key={voice.name} value={voice.name}>
-                  {voice.name}
-                </option>
-              )
-            ))}
-          </select>
+
+        <!-- Results -->
+        <div id="resultsMode" class="hidden">
+            <div class="card">
+                <div class="score-display">
+                    <div style="font-size: 60px;">🏆</div>
+                    <h2>Øvelsen er færdig!</h2>
+                    <div class="score-number" id="finalScore">0</div>
+                    <p>ud af 5 spørgsmål</p>
+                </div>
+                
+                <div id="resultMessage" style="text-align: center; font-size: 18px; margin-bottom: 25px; padding: 20px; background: #f7fafc; border-radius: 12px; font-weight: 600;"></div>
+                
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="restartQuiz()">
+                        🔄 Prøv igen
+                    </button>
+                    <button class="btn btn-secondary" onclick="backToLearning()">
+                        📚 Tilbage til træning
+                    </button>
+                </div>
+            </div>
         </div>
-        
-        <div>
-          <label className="block text-xs font-medium mb-1">
-            Talehastighed: {speechRate.toFixed(1)}
-          </label>
-          <input 
-            type="range" 
-            min="0.5" 
-            max="1.0" 
-            step="0.1"
-            value={speechRate}
-            onChange={(e) => setSpeechRate(parseFloat(e.target.value))}
-            className="w-full"
-          />
-          <div className="flex justify-between text-xs text-gray-500">
-            <span>Langsom</span>
-            <span>Normal</span>
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-2 gap-1 mt-2">
-          <button 
-            onClick={() => speakText("Hallo, ich bin deine deutsche Stimme. Guten Tag!")}
-            className="bg-green-600 text-white px-2 py-2 rounded-md hover:bg-green-700 w-full text-sm"
-          >
-            Test tysk stemme
-          </button>
-          <button 
-            onClick={() => {
-              const utterance = new SpeechSynthesisUtterance("Hej, dette er en test af den danske oversættelse");
-              utterance.lang = "da-DK";
-              utterance.rate = speechRate;
-              window.speechSynthesis.speak(utterance);
-            }}
-            className="bg-blue-600 text-white px-2 py-2 rounded-md hover:bg-blue-700 w-full text-sm"
-          >
-            Test dansk stemme
-          </button>
-        </div>
-      </div>
-      
-      {/* Instructions - Collapsed by default on iPhone */}
-      <div className="mt-4 mb-10">
-        <button 
-          onClick={() => setShowInstructions(!showInstructions)} 
-          className="w-full bg-gray-200 text-gray-800 py-2 rounded-md hover:bg-gray-300 transition text-sm mb-1"
-        >
-          {showInstructions ? 'Skjul vejledning' : 'Vis vejledning'}
-        </button>
-        
-        {showInstructions && (
-          <div className="bg-blue-100 p-3 rounded text-xs">
-            <h3 className="font-bold mb-1">Sådan bruger du programmet:</h3>
-            <ul className="list-disc pl-4 space-y-1">
-              <li>Udfyld det manglende ord i sætningen (bøjninger af "sein")</li>
-              <li>Klik på lydikonet for at høre sætningen eller oversættelsen</li>
-              <li>Brug "Hint" hvis du har brug for hjælp</li>
-              <li>Tryk "Tjek svar" eller Enter for at kontrollere dit svar</li>
-              <li>Juster stemmens hastighed med skyderen, hvis den taler for hurtigt</li>
-            </ul>
-          </div>
-        )}
-      </div>
     </div>
-  );
-};
 
-export default TyskLaering;
+    <!-- Install Prompt -->
+    <div id="installPrompt" class="install-prompt">
+        <div>📱 Installer appen på din telefon for den bedste oplevelse!</div>
+        <button onclick="installApp()">Installer</button>
+        <button onclick="dismissInstallPrompt()">Ikke nu</button>
+    </div>
+
+    <script>
+        // App data
+        const examples = [
+            { pronoun: "ich", verb: "bin", german: "Ich bin 14 Jahre alt.", danish: "Jeg er 14 år gammel." },
+            { pronoun: "du", verb: "bist", german: "Du bist sehr klug.", danish: "Du er meget klog." },
+            { pronoun: "er", verb: "ist", german: "Er ist mein Freund.", danish: "Han er min ven." },
+            { pronoun: "sie", verb: "ist", german: "Sie ist meine Schwester.", danish: "Hun er min søster." },
+            { pronoun: "es", verb: "ist", german: "Es ist ein Buch.", danish: "Det er en bog." },
+            { pronoun: "wir", verb: "sind", german: "Wir sind in der Schule.", danish: "Vi er i skolen." },
+            { pronoun: "ihr", verb: "seid", german: "Ihr seid gute Schüler.", danish: "I er gode elever." },
+            { pronoun: "sie", verb: "sind", german: "Sie sind aus Deutschland.", danish: "De er fra Tyskland." },
+            { pronoun: "Sie", verb: "sind", german: "Sie sind herzlich willkommen.", danish: "De er hjertelig velkommen." }
+        ];
+
+        const quizQuestions = [
+            { question: "Hvad er den korrekte form af 'sein'?\n\nIch ___ 14 Jahre alt.", options: ["bin", "bist", "ist", "sind"], correct: "bin" },
+            { question: "Udfyld den manglende form:\n\nDu ___ sehr klug.", options: ["bin", "bist", "ist", "sind"], correct: "bist" },
+            { question: "Hvad er den korrekte form?\n\nWir ___ in der Schule.", options: ["bin", "ist", "sind", "seid"], correct: "sind" },
+            { question: "Vælg den rigtige form:\n\nIhr ___ gute Schüler.", options: ["bin", "bist", "seid", "sind"], correct: "seid" },
+            { question: "Udfyld sætningen:\n\nSie (høflig form) ___ herzlich willkommen.", options: ["bist", "ist", "seid", "sind"], correct: "sind" }
+        ];
+
+        // App state
+        let currentExampleIndex = 0;
+        let showTranslation = false;
+        let showConjugation = false;
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let selectedAnswer = null;
+
+        // PWA install prompt
+        let deferredPrompt;
+        let installPromptDismissed = localStorage.getItem('installPromptDismissed') === 'true';
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+            setupPWAInstallPrompt();
+        });
+
+        function initializeApp() {
+            renderConjugationTable();
+            updateExample();
+            updateNavigationButtons();
+        }
+
+        function renderConjugationTable() {
+            const table = document.getElementById('conjugationTable');
+            table.innerHTML = examples.map(ex => 
+                `<div class="conjugation-row">
+                    <div class="pronoun">${ex.pronoun}</div>
+                    <div class="verb">${ex.verb}</div>
+                </div>`
+            ).join('');
+        }
+
+        function toggleConjugation() {
+            const table = document.getElementById('conjugationTable');
+            const toggleText = document.getElementById('conjugationToggleText');
+            
+            showConjugation = !showConjugation;
+            
+            if (showConjugation) {
+                table.classList.remove('hidden');
+                table.classList.add('fade-in');
+                toggleText.textContent = '🙈 Skjul bøjning';
+            } else {
+                table.classList.add('hidden');
+                toggleText.textContent = '👁️ Vis bøjning';
+            }
+        }
+
+        function updateExample() {
+            const example = examples[currentExampleIndex];
+            document.getElementById('exampleSentence').textContent = example.german;
+            document.getElementById('currentIndex').textContent = currentExampleIndex + 1;
+            document.getElementById('totalExamples').textContent = examples.length;
+            
+            // Hide translation when switching examples
+            if (showTranslation) {
+                toggleTranslation();
+            }
+        }
+
+        function toggleTranslation() {
+            const translationDiv = document.getElementById('translationDiv');
+            const toggleText = document.getElementById('translationToggleText');
+            const example = examples[currentExampleIndex];
+            
+            showTranslation = !showTranslation;
+            
+            if (showTranslation) {
+                translationDiv.textContent = example.danish;
+                translationDiv.classList.remove('hidden');
+                translationDiv.classList.add('slide-in');
+                toggleText.textContent = '🙈 Skjul';
+            } else {
+                translationDiv.classList.add('hidden');
+                toggleText.textContent = '👁️ Oversæt';
+            }
+        }
+
+        function speakSentence() {
+            if ('speechSynthesis' in window) {
+                // Stop any ongoing speech
+                window.speechSynthesis.cancel();
+                
+                const example = examples[currentExampleIndex];
+                const utterance = new SpeechSynthesisUtterance(example.german);
+                utterance.lang = 'de-DE';
+                utterance.rate = 0.7;
+                utterance.pitch = 1.0;
+                
+                window.speechSynthesis.speak(utterance);
+                
+                // Visual feedback
+                const btn = event.target;
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '🔊 Afspiller...';
+                btn.disabled = true;
+                
+                utterance.onend = function() {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                };
+            } else {
+                alert('Din browser understøtter ikke talesyntese');
+            }
+        }
+
+        function previousExample() {
+            if (currentExampleIndex > 0) {
+                currentExampleIndex--;
+                updateExample();
+                updateNavigationButtons();
+            }
+        }
+
+        function nextExample() {
+            if (currentExampleIndex < examples.length - 1) {
+                currentExampleIndex++;
+                updateExample();
+                updateNavigationButtons();
+            }
+        }
+
+        function updateNavigationButtons() {
+            document.getElementById('prevBtn').disabled = currentExampleIndex === 0;
+            document.getElementById('nextBtn').disabled = currentExampleIndex === examples.length - 1;
+        }
+
+        function startQuiz() {
+            document.getElementById('learningMode').classList.add('hidden');
+            document.getElementById('quizMode').classList.remove('hidden');
+            document.getElementById('quizMode').classList.add('fade-in');
+            
+            currentQuestionIndex = 0;
+            score = 0;
+            updateQuizQuestion();
+        }
+
+        function updateQuizQuestion() {
+            const question = quizQuestions[currentQuestionIndex];
+            
+            document.getElementById('questionNumber').textContent = currentQuestionIndex + 1;
+            document.getElementById('currentScore').textContent = score;
+            document.getElementById('quizQuestion').textContent = question.question;
+            
+            const optionsContainer = document.getElementById('quizOptions');
+            optionsContainer.innerHTML = question.options.map(option => 
+                `<div class="quiz-option" onclick="selectAnswer('${option}')">${option}</div>`
+            ).join('');
+            
+            // Reset feedback and next button
+            document.getElementById('quizFeedback').classList.add('hidden');
+            document.getElementById('nextQuestionBtn').classList.add('hidden');
+            selectedAnswer = null;
+        }
+
+        function selectAnswer(answer) {
+            if (selectedAnswer) return; // Prevent multiple selections
+            
+            selectedAnswer = answer;
+            const question = quizQuestions[currentQuestionIndex];
+            const isCorrect = answer === question.correct;
+            
+            if (isCorrect) {
+                score++;
+                document.getElementById('currentScore').textContent = score;
+            }
+            
+            // Update option appearances
+            const options = document.querySelectorAll('.quiz-option');
+            options.forEach(option => {
+                option.classList.add('disabled');
+                const optionText = option.textContent;
+                
+                if (optionText === answer) {
+                    option.classList.add(isCorrect ? 'correct' : 'incorrect');
+                } else if (optionText === question.correct) {
+                    option.classList.add('correct');
+                }
+            });
+            
+            // Show feedback
+            const feedback = document.getElementById('quizFeedback');
+            feedback.textContent = isCorrect ? 
+                'Korrekt! 🎉' : 
+                `Ikke korrekt. Det rigtige svar er: ${question.correct}`;
+            feedback.className = `feedback ${isCorrect ? 'correct' : 'incorrect'}`;
+            feedback.classList.remove('hidden');
+            feedback.classList.add('fade-in');
+            
+            // Show next button
+            const nextBtn = document.getElementById('nextQuestionBtn');
+            if (currentQuestionIndex < quizQuestions.length - 1) {
+                nextBtn.textContent = 'Næste spørgsmål';
+                nextBtn.onclick = nextQuestion;
+            } else {
+                nextBtn.textContent = 'Se resultat';
+                nextBtn.onclick = showResults;
+            }
+            nextBtn.classList.remove('hidden');
+            nextBtn.classList.add('fade-in');
+            
+            // Haptic feedback simulation
+            if (navigator.vibrate) {
+                navigator.vibrate(isCorrect ? [50] : [100, 50, 100]);
+            }
+        }
+
+        function nextQuestion() {
+            currentQuestionIndex++;
+            updateQuizQuestion();
+        }
+
+        function showResults() {
+            document.getElementById('quizMode').classList.add('hidden');
+            document.getElementById('resultsMode').classList.remove('hidden');
+            document.getElementById('resultsMode').classList.add('fade-in');
+            
+            document.getElementById('finalScore').textContent = score;
+            
+            const resultMessage = document.getElementById('resultMessage');
+            if (score === quizQuestions.length) {
+                resultMessage.innerHTML = "🎉 Perfekt! Du er en mester i verbet 'sein'!";
+            } else if (score >= 3) {
+                resultMessage.innerHTML = "👍 Godt klaret! Fortsæt med at øve dig.";
+            } else {
+                resultMessage.innerHTML = "📚 Øv dig lidt mere og prøv igen!";
+            }
+        }
+
+        function restartQuiz() {
+            currentQuestionIndex = 0;
+            score = 0;
+            document.getElementById('resultsMode').classList.add('hidden');
+            document.getElementById('quizMode').classList.remove('hidden');
+            updateQuizQuestion();
+        }
+
+        function backToLearning() {
+            document.getElementById('resultsMode').classList.add('hidden');
+            document.getElementById('learningMode').classList.remove('hidden');
+            document.getElementById('learningMode').classList.add('fade-in');
+        }
+
+        // PWA Installation
+        function setupPWAInstallPrompt() {
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                deferredPrompt = e;
+                
+                if (!installPromptDismissed) {
+                    setTimeout(() => {
+                        document.getElementById('installPrompt').classList.add('show');
+                    }, 3000);
+                }
+            });
+
+            window.addEventListener('appinstalled', () => {
+                console.log('PWA blev installeret');
+                document.getElementById('installPrompt').classList.remove('show');
+            });
+        }
+
+        function installApp() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('Brugeren accepterede installationen');
+                    }
+                    deferredPrompt = null;
+                });
+            }
+            document.getElementById('installPrompt').classList.remove('show');
+        }
+
+        function dismissInstallPrompt() {
+            document.getElementById('installPrompt').classList.remove('show');
+            localStorage.setItem('installPromptDismissed', 'true');
+        }
+
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('data:text/javascript;base64,Ly8gU2VydmljZSBXb3JrZXIgZm9yIFBXQQpjb25zdCBDQUNIRV9OQU1FID0gJ3R5c2stc2Vpbi10cmFlbmVyLXYxJzsKY29uc3QgdXJsc1RvQ2FjaGUgPSBbCiAgJy4vJywKICAnLi9pbmRleC5odG1sJwpdOwoKc2VsZi5hZGRFdmVudExpc3RlbmVyKCdpbnN0YWxsJywgZnVuY3Rpb24oZXZlbnQpIHsKICBldmVudC53YWl0VW50aWwoCiAgICBjYWNoZXMub3BlbihDQUNIRV9OQU1FKQogICAgICAudGhlbihmdW5jdGlvbihjYWNoZSkgewogICAgICAgIHJldHVybiBjYWNoZS5hZGRBbGwodXJsc1RvQ2FjaGUpOwogICAgICB9KQogICk7Cn0pOwoKc2VsZi5hZGRFdmVudExpc3RlbmVyKCdmZXRjaCcsIGZ1bmN0aW9uKGV2ZW50KSB7CiAgZXZlbnQucmVzcG9uZFdpdGgoCiAgICBjYWNoZXMubWF0Y2goZXZlbnQucmVxdWVzdCkKICAgICAgLnRoZW4oZnVuY3Rpb24ocmVzcG9uc2UpIHsKICAgICAgICBpZiAocmVzcG9uc2UpIHsKICAgICAgICAgIHJldHVybiByZXNwb25zZTsKICAgICAgICB9CiAgICAgICAgcmV0dXJuIGZldGNoKGV2ZW50LnJlcXVlc3QpOwogICAgICB9KQogICk7Cn0pOw==')
+                .then(function(registration) {
+                    console.log('ServiceWorker registreret:', registration.scope);
+                }, function(err) {
+                    console.log('ServiceWorker registrering fejlede:', err);
+                });
+            });
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowLeft' && !document.getElementById('learningMode').classList.contains('hidden')) {
+                previousExample();
+            } else if (e.key === 'ArrowRight' && !document.getElementById('learningMode').classList.contains('hidden')) {
+                nextExample();
+            } else if (e.key === ' ' && !document.getElementById('learningMode').classList.contains('hidden')) {
+                e.preventDefault();
+                speakSentence();
+            }
+        });
+
+        // Touch gestures for better mobile experience
+        let touchStartX = null;
+        let touchStartY = null;
+
+        document.addEventListener('touchstart', function(e) {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        });
+
+        document.addEventListener('touchend', function(e) {
+            if (!touchStartX || !touchStartY) return;
+
+            let touchEndX = e.changedTouches[0].clientX;
+            let touchEndY = e.changedTouches[0].clientY;
+
+            let diffX = touchStartX - touchEndX;
+            let diffY = touchStartY - touchEndY;
+
+            // Only trigger swipe if horizontal movement is greater than vertical
+            if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 50) {
+                if (!document.getElementById('learningMode').classList.contains('hidden')) {
+                    if (diffX > 0) {
+                        // Swipe left - next example
+                        nextExample();
+                    } else {
+                        // Swipe right - previous example
+                        previousExample();
+                    }
+                }
+            }
+
+            touchStartX = null;
+            touchStartY = null;
+        });
+
+        // Prevent zoom on double tap
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function (event) {
+            let now = (new Date()).getTime();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
+
+        // Update app badge (if supported)
+        function updateAppBadge(count) {
+            if ('setAppBadge' in navigator) {
+                navigator.setAppBadge(count);
+            }
+        }
+
+        // Wake lock to prevent screen from turning off during use
+        let wakeLock = null;
+
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                }
+            } catch (err) {
+                console.log('Wake lock fejlede:', err);
+            }
+        }
+
+        // Request wake lock when starting quiz
+        function startQuizWithWakeLock() {
+            startQuiz();
+            requestWakeLock();
+        }
+
+        // Release wake lock when leaving quiz
+        function backToLearningWithWakeLockRelease() {
+            backToLearning();
+            if (wakeLock) {
+                wakeLock.release();
+                wakeLock = null;
+            }
+        }
+
+        // Update button onclick for wake lock
+        setTimeout(() => {
+            const startQuizBtn = document.querySelector('.btn.btn-primary.btn-full');
+            if (startQuizBtn) {
+                startQuizBtn.onclick = startQuizWithWakeLock;
+            }
+        }, 100);
+    </script>
+</body>
+</html>
