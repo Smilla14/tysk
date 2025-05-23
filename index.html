@@ -587,70 +587,152 @@
         }
 
         function speakSentence() {
-            if ('speechSynthesis' in window) {
-                // Stop any ongoing speech
-                window.speechSynthesis.cancel();
-                
-                const example = examples[currentExampleIndex];
-                const utterance = new SpeechSynthesisUtterance(example.german);
-                
-                // Find the best German voice
-                const voices = window.speechSynthesis.getVoices();
-                const germanVoices = voices.filter(voice => 
-                    voice.lang.startsWith('de') || 
-                    voice.name.toLowerCase().includes('german') ||
-                    voice.name.toLowerCase().includes('deutsch')
-                );
-                
-                if (germanVoices.length > 0) {
-                    // Prefer female German voices as they're often clearer for learning
-                    const femaleGermanVoice = germanVoices.find(voice => 
-                        voice.name.toLowerCase().includes('female') ||
-                        voice.name.toLowerCase().includes('petra') ||
-                        voice.name.toLowerCase().includes('marlene') ||
-                        voice.name.toLowerCase().includes('vicki')
-                    );
-                    
-                    utterance.voice = femaleGermanVoice || germanVoices[0];
+            const example = examples[currentExampleIndex];
+            const btn = event.target.closest('button');
+            const originalText = btn.innerHTML;
+            
+            // Visual feedback
+            btn.innerHTML = '🔊 Afspiller...';
+            btn.disabled = true;
+            btn.style.opacity = '0.7';
+            
+            // Use Google Translate's audio API for professional German pronunciation
+            const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=de&client=tw-ob&q=${encodeURIComponent(example.german)}`;
+            
+            const audio = new Audio();
+            audio.crossOrigin = "anonymous";
+            
+            // Create a proxy URL to avoid CORS issues
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(audioUrl)}`;
+            
+            audio.src = proxyUrl;
+            
+            audio.onloadstart = function() {
+                console.log('Indlæser tysk lyd...');
+            };
+            
+            audio.oncanplay = function() {
+                audio.play().catch(err => {
+                    console.log('Kunne ikke afspille lyd:', err);
+                    // Fallback to local pronunciation guide
+                    showPronunciationGuide(example);
+                    resetButton();
+                });
+            };
+            
+            audio.onended = function() {
+                resetButton();
+            };
+            
+            audio.onerror = function() {
+                console.log('Lyd fejlede, viser udtale guide');
+                showPronunciationGuide(example);
+                resetButton();
+            };
+            
+            // Timeout after 5 seconds
+            setTimeout(() => {
+                if (btn.disabled) {
+                    audio.pause();
+                    showPronunciationGuide(example);
+                    resetButton();
                 }
-                
-                // Optimize settings for German pronunciation
-                utterance.lang = 'de-DE';
-                utterance.rate = 0.6;  // Slower for better learning
-                utterance.pitch = 1.0;
-                utterance.volume = 0.9;
-                
-                // Add pauses between words for clarity
-                const wordsWithPauses = example.german.replace(/\s+/g, ' ... ');
-                utterance.text = wordsWithPauses;
-                
-                window.speechSynthesis.speak(utterance);
-                
-                // Visual feedback
-                const btn = event.target.closest('button');
-                const originalText = btn.innerHTML;
-                btn.innerHTML = '🔊 Afspiller...';
-                btn.disabled = true;
-                btn.style.opacity = '0.7';
-                
-                utterance.onend = function() {
-                    btn.innerHTML = originalText;
-                    btn.disabled = false;
-                    btn.style.opacity = '1';
-                };
-                
-                utterance.onerror = function() {
-                    btn.innerHTML = originalText;
-                    btn.disabled = false;
-                    btn.style.opacity = '1';
-                    alert('Kunne ikke afspille tysk udtale. Prøv igen.');
-                };
-            } else {
-                // Fallback: Show phonetic pronunciation
-                const example = examples[currentExampleIndex];
-                const phoneticGuide = getPhoneticGuide(example.german);
-                alert(`Udtale hjælp:\n${example.german}\n\n${phoneticGuide}\n\nTip: Aktiver tysk stemme i din telefons indstillinger for bedre udtale.`);
+            }, 5000);
+            
+            function resetButton() {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                btn.style.opacity = '1';
             }
+        }
+        
+        function showPronunciationGuide(example) {
+            const guide = getDetailedPronunciationGuide(example.german);
+            
+            // Create a modal-like popup
+            const modal = document.createElement('div');
+            modal.innerHTML = `
+                <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px;">
+                    <div style="background: white; padding: 30px; border-radius: 20px; max-width: 350px; text-align: center;">
+                        <h3 style="color: #333; margin-bottom: 20px;">🎯 Tysk udtale</h3>
+                        <div style="background: #f0f8ff; padding: 15px; border-radius: 12px; margin-bottom: 15px;">
+                            <strong style="font-size: 18px; color: #2d3748;">${example.german}</strong>
+                        </div>
+                        <div style="background: #f7fafc; padding: 15px; border-radius: 12px; margin-bottom: 20px; line-height: 1.6;">
+                            ${guide}
+                        </div>
+                        <button onclick="this.parentElement.parentElement.remove()" style="background: #667eea; color: white; border: none; padding: 12px 24px; border-radius: 12px; font-weight: 600; cursor: pointer;">
+                            Forstået ✓
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+        
+        function getDetailedPronunciationGuide(germanText) {
+            const guides = {
+                'Ich bin 14 Jahre alt.': `
+                    <strong>Ich</strong> = "ikh" (som i "ich" men med hårdt k-lyd)<br>
+                    <strong>bin</strong> = "bin" (som dansk)<br>
+                    <strong>Jahre</strong> = "YA-re" (YA som i "ja", re som i "regel")<br>
+                    <strong>alt</strong> = "alt" (som dansk)
+                `,
+                'Du bist sehr klug.': `
+                    <strong>Du</strong> = "du" (som dansk)<br>
+                    <strong>bist</strong> = "bist" (som dansk "bist")<br>
+                    <strong>sehr</strong> = "zeːr" (z-lyd + langt e)<br>
+                    <strong>klug</strong> = "kluk" (som dansk "klug")
+                `,
+                'Er ist mein Freund.': `
+                    <strong>Er</strong> = "eːr" (langt e + r)<br>
+                    <strong>ist</strong> = "ist" (som dansk)<br>
+                    <strong>mein</strong> = "main" (som engelsk "mine")<br>
+                    <strong>Freund</strong> = "froint" (fr + oy-lyd + nt)
+                `,
+                'Sie ist meine Schwester.': `
+                    <strong>Sie</strong> = "ziː" (z-lyd + langt i)<br>
+                    <strong>ist</strong> = "ist" (som dansk)<br>
+                    <strong>meine</strong> = "mai-ne" (mai + ne)<br>
+                    <strong>Schwester</strong> = "SHVES-ter" (sh + ves + ter)
+                `,
+                'Es ist ein Buch.': `
+                    <strong>Es</strong> = "es" (som dansk)<br>
+                    <strong>ist</strong> = "ist" (som dansk)<br>
+                    <strong>ein</strong> = "ain" (som engelsk "I")<br>
+                    <strong>Buch</strong> = "buːkh" (bu + ch-lyd fra baghalsen)
+                `,
+                'Wir sind in der Schule.': `
+                    <strong>Wir</strong> = "viːr" (v + langt i + r)<br>
+                    <strong>sind</strong> = "zint" (z + int)<br>
+                    <strong>in</strong> = "in" (som dansk)<br>
+                    <strong>der</strong> = "deːr" (de + r)<br>
+                    <strong>Schule</strong> = "SHU-le" (shu + le)
+                `,
+                'Ihr seid gute Schüler.': `
+                    <strong>Ihr</strong> = "iːr" (langt i + r)<br>
+                    <strong>seid</strong> = "zait" (z + ai + t)<br>
+                    <strong>gute</strong> = "GU-te" (gu + te)<br>
+                    <strong>Schüler</strong> = "SHOY-ler" (sh + øy + ler)
+                `,
+                'Sie sind aus Deutschland.': `
+                    <strong>Sie</strong> = "ziː" (z + langt i)<br>
+                    <strong>sind</strong> = "zint" (z + int)<br>
+                    <strong>aus</strong> = "aus" (au som i "hau")<br>
+                    <strong>Deutschland</strong> = "DOITSH-lant" (doitsh + lant)
+                `,
+                'Sie sind herzlich willkommen.': `
+                    <strong>Sie</strong> = "ziː" (z + langt i)<br>
+                    <strong>sind</strong> = "zint" (z + int)<br>
+                    <strong>herzlich</strong> = "HERTS-likh" (herts + likh)<br>
+                    <strong>willkommen</strong> = "vil-KOM-men" (vil + kom + men)
+                `
+            };
+            
+            return guides[germanText] || `
+                <em>Udtale guide ikke tilgængelig for denne sætning.</em><br>
+                <strong>Tip:</strong> Husk at tysk har hårdere konsonanter og klarere vokaler end dansk.
+            `;
         }
         
         function getPhoneticGuide(germanText) {
@@ -990,7 +1072,5 @@
             }
         }, 100);
     </script>
-</body>
-</html>
 </body>
 </html>
